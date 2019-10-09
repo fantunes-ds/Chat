@@ -3,7 +3,7 @@
 #include <Server.h>
 #include <cassert>
 
-#define PORT 76475
+#define PORT 8765
 
 Server::~Server()
 {
@@ -23,7 +23,8 @@ void Server::Run()
 	Accept();
     while(!m_shouldClose)
     {
-		ReceiveMessage();
+		if (ReceiveMessage() < 0)
+			Accept();
     }
 }
 
@@ -38,6 +39,7 @@ int Server::InitLib()
 		return EXIT_FAILURE;
 	}
 	std::cout << "init" << std::endl;
+    return EXIT_SUCCESS;
 }
 
 int Server::InitSocket()
@@ -51,6 +53,7 @@ int Server::InitSocket()
 		return errno;
 	}
 	std::cout << "init socket" << std::endl;
+    return EXIT_SUCCESS;
 }
 
 int Server::Bind()
@@ -68,6 +71,7 @@ int Server::Bind()
 		return errno;
 	}
 	std::cout << "Bind" << std::endl;
+    return EXIT_SUCCESS;
 }
 
 int Server::Listen()
@@ -80,6 +84,7 @@ int Server::Listen()
 		return errno;
 	}
 	std::cout << "Listen" << std::endl;
+    return EXIT_SUCCESS;
 }
 
 
@@ -90,7 +95,6 @@ int Server::Accept()
 	int sinsize = sizeof csin;
 	m_csock = accept(m_sock, reinterpret_cast<SOCKADDR*>(&csin), &sinsize);
 
-
 	if (m_csock == INVALID_SOCKET)
 	{
 		perror("accept()");
@@ -99,6 +103,7 @@ int Server::Accept()
 		return errno;
 	}
 	std::cout << "Accept" << std::endl;
+    return EXIT_SUCCESS;
 }
 
 int Server::ReceiveMessage()
@@ -108,15 +113,26 @@ int Server::ReceiveMessage()
 
 	if ((n = recv(m_csock, buffer, sizeof buffer - 1, 0)) < 0)
 	{
-		perror("recv()");
+		perror("User Disconnected");
+		return -1;
 		exit(errno);
 	}
+    if (buffer[n-1] != NULL)
+	    buffer[n] = '\0';
+	std::string stringBuffer{ buffer };
 
-	std::cout << n << std::endl;
-	buffer[n] = '\0';
-	if (strncmp(buffer, "!close",6) == 0)
+	if (stringBuffer.find_last_of(": Quit\0") == 1)
+	{
+		closesocket(m_csock);
+		std::cout << ("User Disconnected");
+		return -1;
+	}
+
+	if (stringBuffer.find_last_of(": !close\0") == 1)
 		m_shouldClose = true;
-	std::cout << buffer << std::endl;
+
+    std::cout << buffer << std::endl;
+    return EXIT_SUCCESS;
 }
 
 void Server::BroadcastMessage(const std::string& p_message)

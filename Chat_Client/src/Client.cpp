@@ -47,6 +47,17 @@ int Client::InitSocket()
 	return EXIT_SUCCESS;
 }
 
+void Client::SetUsername()
+{
+	std::string newUsername{};
+	std::cout << "Enter Username" << '\n';
+	//std::getline(std::cin, m_username)
+	char test[1024];
+	std::getline(std::cin, newUsername);
+    std::cin.getline(test, 1024);
+	m_username = test;
+}
+
 void Client::Connection(const std::string& p_address, unsigned int p_port)
 {
 	struct hostent* hostinfo = NULL;
@@ -56,11 +67,31 @@ void Client::Connection(const std::string& p_address, unsigned int p_port)
 	m_sin.sin_family = AF_INET;
 }
 
-void Client::DecodeAddress()
+void Client::DecodeAddress() const
 {
 	char str[15];
 	inet_ntop(AF_INET, &(m_sin.sin_addr), str, 15);
 	std::cout << str << std::endl;
+}
+
+
+void Client::TryConnect()
+{
+	std::cout << "Enter IP Address" << '\n';
+	std::string address;
+	std::cin >> address;
+	std::cout << "Enter Port" << '\n';
+	int port;
+	std::cin >> port;
+	Connection(address, port);
+	DecodeAddress();
+	while (connect(m_sock, reinterpret_cast<SOCKADDR*>(&m_sin), sizeof(SOCKADDR)) == SOCKET_ERROR)
+	{
+		perror("connect()");
+	}
+	std::cout << "Connected to server " << address << ':' << port << '\n';
+	m_isConnected = true;
+	SetUsername();
 }
 
 void Client::Run()
@@ -71,37 +102,42 @@ void Client::Run()
     }
 }
 
-void Client::TryConnect(const std::string& p_address, unsigned int p_port)
-{
-	Connection(p_address, p_port);
-	DecodeAddress();
-	while (connect(m_sock, reinterpret_cast<SOCKADDR*>(&m_sin), sizeof(SOCKADDR)) == SOCKET_ERROR)
-	{
-		perror("connect()");
-	}
-}
-
 void Client::Send()
 {
-	std::string p_message;
-	std::getline(std::cin,p_message);
+	std::string message;
+	std::string formattedMessage;
 
-	if (send(m_sock, p_message.c_str(), p_message.length(), 0) < 0)
+	std::cout << m_username << " : ";
+
+	std::getline(std::cin, message);
+	formattedMessage = m_username + " : " +  message;
+
+    if (message == "Quit")
+    {
+		m_shouldClose = true;
+    }
+    
+    if (send(m_sock, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
 	{
 		perror("send()");
 	}
 
-    if (p_message == "Quit")
-    {
-		m_shouldClose = true;
-    }
+}
 
+void Client::Send(const std::string& p_message)
+{
+	std::string formattedMessage = m_username + " : " + p_message;
 
-	std::cout << "sending: " << p_message << std::endl;
+	if (send(m_sock, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
+	{
+		perror("send()");
+	}
 }
 
 void Client::Close()
 {
+	if (m_isConnected == true)
+		Send();
 	std::cout << "close listen" << std::endl;
 	closesocket(m_sock);
 	std::cout << "close ori" << std::endl;

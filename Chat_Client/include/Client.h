@@ -11,20 +11,24 @@ public:
 
 	void Init();
 
-	void TryConnect(const std::string& p_address, unsigned int p_port);
+	void TryConnect();
 	void Run();
 private:
 	int InitLib();
 	int InitSocket();
+    void SetUsername();
 
-	void Connection(const std::string& p_address, unsigned p_port);
-	void DecodeAddress();
+    void Connection(const std::string& p_address, unsigned p_port);
+	void DecodeAddress() const;
 
 	void Send();
+    void Send(const std::string& p_message);
 
     void Close();
 
     SOCKET m_sock;
     SOCKADDR_IN m_sin;
+	std::string m_username;
     bool m_shouldClose {false};
+    bool m_isConnected{false};
 };
