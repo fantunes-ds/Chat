@@ -26,18 +26,6 @@ void Server::Run()
 	threadAccept.detach();
     while(!m_shouldClose)
     {
-        if (!m_clients.empty())
-        {
-            for (auto& client : m_clients)
-            {
-                if (!client.second.isReceiving)
-                {
-                    client.second.isReceiving = true;
-                    std::thread threadRecv{ &Server::ReceiveMessage, this, std::ref(client.second) };
-                    threadRecv.detach();
-                }
-            }
-        }
     }
 }
 
@@ -105,7 +93,6 @@ int Server::Accept()
 
 	Client newClient;
 	newClient.clientSocket = accept(m_sock, reinterpret_cast<SOCKADDR*>(&csin), &sinsize);
-	newClient.id = m_clients.size();
 
 	if (newClient.clientSocket == INVALID_SOCKET)
 	{
@@ -114,60 +101,71 @@ int Server::Accept()
 		std::cin.get();
 		return errno;
 	}
-	m_clients.insert_or_assign(m_clients.size(), newClient);
+	int placement {0};
+	while (!m_clients.emplace(m_clients.size() + placement, newClient).second)
+		++placement;
 
-    std::thread threadAcc{ &Server::Accept, this };
-	threadAcc.detach();
+	m_clients.find(m_clients.size() - 1)->second.id = m_clients.size() + placement - 1;
+
+    std::thread { &Server::Accept, this }.detach();
+	std::thread{ &Server::ReceiveMessage, this, std::ref(m_clients.find(m_clients.size() - 1)->second) }.detach();
     std::cout << "User logged in\n";
     return EXIT_SUCCESS;
 }
 
 void Server::ReceiveMessage(Client& p_client)
 {
-	char buffer[1024];
-	int n = 0;
-
-	if ((n = recv(p_client.clientSocket, buffer, sizeof buffer - 1, 0)) < 0)
+	bool shouldThreadStop{ false };
+	while (!shouldThreadStop)
 	{
-        Send(p_client, "Disconnecting");
-		closesocket(p_client.clientSocket);
-		std::cout << p_client.username + " Disconnected\n";
+		char buffer[1024]{'\0'};
+		int n = 0;
 
-		m_clients.erase(m_clients.find(p_client.id));
-        return;
+		if ((n = recv(p_client.clientSocket, buffer, sizeof buffer - 1, 0)) < 0)
+		{
+			closesocket(p_client.clientSocket);
+			std::cout << p_client.username + " Disconnected\n";
+
+			m_clients.erase(m_clients.find(p_client.id));
+			shouldThreadStop = true;
+		}
+		if (n < 0)
+			n = 0;
+		if (buffer[0] != -52 && buffer[n - 1] != NULL)
+			buffer[n] = '\0';
+
+		const std::string stringBuffer{ buffer };
+		if (stringBuffer.find(": !Quit") != std::string::npos)
+		{
+			Send(p_client, "Disconnecting");
+			closesocket(p_client.clientSocket);
+			std::cout << (p_client.username + " Disconnected\n");
+
+			m_clients.erase(m_clients.find(p_client.id));
+		}
+		else if (stringBuffer.find(": !close") != std::string::npos)
+		{
+			m_shouldClose = true;
+		}
+		else if (stringBuffer.find("New client username is : ") != std::string::npos)
+		{
+			char name[25];
+			sscanf_s(stringBuffer.c_str(), "New client username is : %s", &name, 25);
+
+			if (*name != NULL)
+				p_client.username = name;
+
+			std::string Welcome{ "Welcome to the server, " + p_client.username + '\n' };
+
+			Send(p_client, Welcome);
+			p_client.isReceiving = false;
+		}
+		else 
+		{
+			p_client.isReceiving = false;
+			std::cout << buffer << std::endl;
+		}
 	}
-
-    if (buffer[n-1] != NULL)
-	    buffer[n] = '\0';
-
-    const std::string stringBuffer{ buffer };
-	if (stringBuffer.find(": !Quit") != std::string::npos)
-	{
-		closesocket(p_client.clientSocket);
-	    std::cout << (p_client.username + " Disconnected\n");
-
-	    m_clients.erase(m_clients.find(p_client.id));
-	}
-	else if (stringBuffer.find(": !close") != std::string::npos)
-	{
-		m_shouldClose = true;
-	}
-	else if (stringBuffer.find("New client username is : ") != std::string::npos)
-    {
-		char name[25];
-		sscanf_s(stringBuffer.c_str(), "New client username is : %s", &name, 25);
-
-	    if(*name != NULL)
-            p_client.username = name;
-
-	    std::string Welcome{ "Welcome to the server, " + p_client.username + '\n' };
-
-        Send(p_client, Welcome);
-        p_client.isReceiving = false;
-		return;
-    }
-    p_client.isReceiving = false;
-    std::cout << buffer << std::endl;
 }
 
 void Server::Send(const Client& p_client, const std::string& p_message) const
