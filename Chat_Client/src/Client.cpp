@@ -17,6 +17,7 @@ void Client::Init()
 {
     assert(InitLib() >= 0);
 	InitSocket();
+	std::cout << "Client started\n";
 }
 
 int Client::InitLib()
@@ -29,21 +30,19 @@ int Client::InitLib()
 		std::cin.get();
 		return EXIT_FAILURE;
 	}
-	std::cout << "init" << std::endl;
 	return EXIT_SUCCESS;
 }
 
 int Client::InitSocket()
 {
-	m_sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (m_sock == INVALID_SOCKET)
+	m_serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+	if (m_serverSocket == INVALID_SOCKET)
 	{
 		perror("socket()");
 		std::cout << "INVALID_SOCKET" << std::endl;
 		std::cin.get();
 		return errno;
 	}
-	std::cout << "init socket" << std::endl;
 	return EXIT_SUCCESS;
 }
 
@@ -56,6 +55,13 @@ void Client::SetUsername()
 	std::getline(std::cin, newUsername);
     std::cin.getline(test, 1024);
 	m_username = test;
+
+    const std::string formattedMessage = "New client username is : " + m_username;
+    if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
+	{
+		perror("send()");
+	}
+	ReceiveMessage();
 }
 
 void Client::Connection(const std::string& p_address, unsigned int p_port)
@@ -71,27 +77,41 @@ void Client::DecodeAddress() const
 {
 	char str[15];
 	inet_ntop(AF_INET, &(m_sin.sin_addr), str, 15);
-	std::cout << str << std::endl;
 }
 
 
 void Client::TryConnect()
 {
-	std::cout << "Enter IP Address" << '\n';
+	std::cout << "Default address is " << m_defaultAddress << " send 1 to use it, or write a new address" << '\n';
 	std::string address;
 	std::cin >> address;
-	std::cout << "Enter Port" << '\n';
+
+	if (address == "1")
+	{
+		address = m_defaultAddress;
+		std::cout << "using " << m_defaultAddress << " as address\n";
+	}
+    std::cout << "Default port is " << m_defaultPort << " send 1 to use it, or write a new port" << '\n';
 	int port;
 	std::cin >> port;
+	if (port == 1)
+	{
+		port = m_defaultPort;
+		std::cout << "using " << m_defaultPort << " as port\n";
+	}
 	Connection(address, port);
-	DecodeAddress();
-	while (connect(m_sock, reinterpret_cast<SOCKADDR*>(&m_sin), sizeof(SOCKADDR)) == SOCKET_ERROR)
+
+    DecodeAddress();
+	while (connect(m_serverSocket, reinterpret_cast<SOCKADDR*>(&m_sin), sizeof(SOCKADDR)) == SOCKET_ERROR)
 	{
 		perror("connect()");
 	}
-	std::cout << "Connected to server " << address << ':' << port << '\n';
+
+    std::cout << "Connected to server " << address << ':' << port << '\n';
 	m_isConnected = true;
-	SetUsername();
+
+    SetUsername();
+	Send();
 }
 
 void Client::Run()
@@ -110,6 +130,11 @@ void Client::Send()
 	std::cout << m_username << " : ";
 
 	std::getline(std::cin, message);
+
+    // we keep sending our username, although the server has that information
+    // because it restricts what the user can do. He can't run commands that are only server sided.
+    // since his username is always included before the message, the server won't take it as a command
+    // unless we prepared it to be.
 	formattedMessage = m_username + " : " +  message;
 
     if (message == "!Quit")
@@ -117,21 +142,38 @@ void Client::Send()
 		m_shouldClose = true;
     }
     
-    if (send(m_sock, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
+    if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
 	{
 		perror("send()");
+		TryConnect();
 	}
-
 }
 
-void Client::Send(const std::string& p_message)
+void Client::Send(const std::string& p_message) const
 {
-	std::string formattedMessage = m_username + " : " + p_message;
+    const std::string formattedMessage = m_username + " : " + p_message + '\n';
 
-	if (send(m_sock, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
+	if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
 	{
 		perror("send()");
 	}
+}
+
+void Client::ReceiveMessage() const
+{
+	char buffer[1024];
+	int n = 0;
+
+	if ((n = recv(m_serverSocket, buffer, sizeof buffer - 1, 0)) < 0)
+	{
+		perror(("[ERROR] : Couldn't Receive() message from server"));
+		return;
+	}
+
+	if (buffer[n - 1] != NULL)
+		buffer[n] = '\0';
+
+	std::cout << buffer << std::endl;
 }
 
 void Client::Close()
@@ -139,7 +181,7 @@ void Client::Close()
 	if (m_isConnected == true)
 		Send("!Quit");
 	std::cout << "close listen" << std::endl;
-	closesocket(m_sock);
+	closesocket(m_serverSocket);
 	std::cout << "close ori" << std::endl;
 	WSACleanup();
 }

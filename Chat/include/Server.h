@@ -3,6 +3,7 @@
 #include <WinSock2.h>
 
 #include <string>
+#include <unordered_map>
 
 class Server
 {
@@ -14,19 +15,32 @@ public:
 
 	void Run();
 private:
+    struct Client
+    {
+		SOCKET clientSocket{};
+		std::string username;
+		size_t id{};
+        bool isReceiving {false};
+    };
+
     int InitLib();
     int InitSocket();
-    int Bind();
+    int Bind() const;
 
-	int Listen();
+	int Listen() const;
 	int Accept();
 
-	int ReceiveMessage();
+    void ReceiveMessage(Client& p_client);
+    void Send(const Client& p_client, const std::string& p_message) const;
     void BroadcastMessage(const std::string& p_message);
+    void DisplayConnectedClients();
 
     int Close();
 
+
     SOCKET m_sock;
-	SOCKET m_csock;
+	std::unordered_map<size_t, Client> m_clients{};
+
     bool m_shouldClose {false};
+    const size_t m_maxConnections = 2;
 };

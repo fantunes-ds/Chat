@@ -22,13 +22,16 @@ private:
 	void DecodeAddress() const;
 
 	void Send();
-    void Send(const std::string& p_message);
+    void Send(const std::string& p_message) const;
+    void ReceiveMessage() const;
 
     void Close();
 
-    SOCKET m_sock;
+    SOCKET m_serverSocket;
     SOCKADDR_IN m_sin;
-	std::string m_username;
+	std::string m_username{};
+	const std::string m_defaultAddress{"127.0.0.1"};
+	const unsigned int m_defaultPort{8765};
     bool m_shouldClose {false};
     bool m_isConnected{false};
 };
