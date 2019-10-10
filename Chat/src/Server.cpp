@@ -15,6 +15,7 @@ void Server::Init()
 	assert(InitLib() >= 0);
 	InitSocket();
 	Bind();
+	std::cout << "server initialized\n";
 }
 
 void Server::Run()
@@ -52,7 +53,6 @@ int Server::InitSocket()
 		std::cin.get();
 		return errno;
 	}
-	std::cout << "init socket" << std::endl;
     return EXIT_SUCCESS;
 }
 
@@ -70,7 +70,6 @@ int Server::Bind()
 		std::cin.get();
 		return errno;
 	}
-	std::cout << "Bind" << std::endl;
     return EXIT_SUCCESS;
 }
 
@@ -83,7 +82,6 @@ int Server::Listen()
 		std::cin.get();
 		return errno;
 	}
-	std::cout << "Listen" << std::endl;
     return EXIT_SUCCESS;
 }
 
@@ -102,7 +100,7 @@ int Server::Accept()
 		std::cin.get();
 		return errno;
 	}
-	std::cout << "Accept" << std::endl;
+	std::cout << "User logged in\n";
     return EXIT_SUCCESS;
 }
 
@@ -117,18 +115,20 @@ int Server::ReceiveMessage()
 		return -1;
 		exit(errno);
 	}
+
     if (buffer[n-1] != NULL)
 	    buffer[n] = '\0';
+
 	std::string stringBuffer{ buffer };
 
-	if (stringBuffer.find_last_of(": Quit\0") == 1)
+	if (stringBuffer.find(": !Quit") != std::string::npos)
 	{
 		closesocket(m_csock);
-		std::cout << ("User Disconnected");
+		std::cout << ("User Disconnected\n");
 		return -1;
 	}
 
-	if (stringBuffer.find_last_of(": !close\0") == 1)
+	if (stringBuffer.find(": !close") != std::string::npos)
 		m_shouldClose = true;
 
     std::cout << buffer << std::endl;

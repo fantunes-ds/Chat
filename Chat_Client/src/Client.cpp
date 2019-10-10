@@ -112,7 +112,7 @@ void Client::Send()
 	std::getline(std::cin, message);
 	formattedMessage = m_username + " : " +  message;
 
-    if (message == "Quit")
+    if (message == "!Quit")
     {
 		m_shouldClose = true;
     }
@@ -137,7 +137,7 @@ void Client::Send(const std::string& p_message)
 void Client::Close()
 {
 	if (m_isConnected == true)
-		Send();
+		Send("!Quit");
 	std::cout << "close listen" << std::endl;
 	closesocket(m_sock);
 	std::cout << "close ori" << std::endl;
