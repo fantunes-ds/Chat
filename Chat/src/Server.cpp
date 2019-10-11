@@ -138,10 +138,12 @@ void Server::ReceiveMessage(Client& p_client)
 		if (stringBuffer.find(": !Quit") != std::string::npos)
 		{
 			Send(p_client, "Disconnecting");
+
 			closesocket(p_client.clientSocket);
 			std::cout << (p_client.username + " Disconnected\n");
 
 			m_clients.erase(m_clients.find(p_client.id));
+			shouldThreadStop = true;
 		}
 		else if (stringBuffer.find(": !close") != std::string::npos)
 		{
@@ -156,14 +158,18 @@ void Server::ReceiveMessage(Client& p_client)
 				p_client.username = name;
 
 			std::string Welcome{ "Welcome to the server, " + p_client.username + '\n' };
+			Welcome += "There are currently " + std::to_string((m_clients.size() - 1)) + " people connected with you right now. \n";
+			Welcome += "users connected : ";
+			for (auto& client : m_clients)
+				Welcome += '\t' + client.second.username;
 
 			Send(p_client, Welcome);
-			p_client.isReceiving = false;
 		}
 		else 
 		{
-			p_client.isReceiving = false;
-			std::cout << buffer << std::endl;
+		    std::string realMessage = stringBuffer.substr(p_client.username.size() + 3);
+			BroadcastMessage('\r' + stringBuffer, p_client.id);
+		    //std::cout << buffer << std::endl;
 		}
 	}
 }
@@ -176,14 +182,11 @@ void Server::Send(const Client& p_client, const std::string& p_message) const
     }
 }
 
-void Server::BroadcastMessage(const std::string& p_message)
+void Server::BroadcastMessage(const std::string& p_message, const size_t p_origin)
 {
-    //todo implementation;
-}
-
-void Server::DisplayConnectedClients()
-{
-	//todo implementation;
+    for (auto& client : m_clients)
+        if (client.second.id != p_origin)
+            Send(client.second, p_message);
 }
 
 int Server::Close()

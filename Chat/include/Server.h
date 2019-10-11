@@ -20,7 +20,6 @@ private:
 		SOCKET clientSocket{};
 		std::string username;
 		size_t id{};
-        bool isReceiving {false};
     };
 
     int InitLib();
@@ -32,8 +31,7 @@ private:
 
     void ReceiveMessage(Client& p_client);
     void Send(const Client& p_client, const std::string& p_message) const;
-    void BroadcastMessage(const std::string& p_message);
-    void DisplayConnectedClients();
+    void BroadcastMessage(const std::string& p_message, const size_t p_origin);
 
     int Close();
 

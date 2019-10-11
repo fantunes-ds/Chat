@@ -4,6 +4,7 @@
 #include <Client.h>
 
 #include <WS2tcpip.h>
+#include <thread>
 
 
 #define PORT 76475
@@ -61,7 +62,7 @@ void Client::SetUsername()
 	{
 		perror("send()");
 	}
-	ReceiveMessage();
+	std::thread{ &Client::ReceiveMessage, this }.detach();
 }
 
 void Client::Connection(const std::string& p_address, unsigned int p_port)
@@ -136,11 +137,6 @@ void Client::Send()
     // since his username is always included before the message, the server won't take it as a command
     // unless we prepared it to be.
 	formattedMessage = m_username + " : " +  message;
-
-    if (message == "!Quit")
-    {
-		m_shouldClose = true;
-    }
     
     if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
 	{
@@ -153,36 +149,42 @@ void Client::Send(const std::string& p_message) const
 {
     const std::string formattedMessage = m_username + " : " + p_message + '\n';
 
-	if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0) < 0)
-	{
-		perror("send()");
-	}
+	send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0);
 }
 
-void Client::ReceiveMessage() const
+void Client::ReceiveMessage()
 {
-	char buffer[1024];
-	int n = 0;
-
-	if ((n = recv(m_serverSocket, buffer, sizeof buffer - 1, 0)) < 0)
+	while (!m_shouldThreadStop)
 	{
-		perror(("[ERROR] : Couldn't Receive() message from server"));
-		return;
+		char buffer[1024];
+		int n = 0;
+
+		if ((n = recv(m_serverSocket, buffer, sizeof buffer - 1, 0)) < 0)
+		{
+			perror(("[ERROR] : Couldn't Receive() message from server"));
+			return;
+		}
+
+		if (buffer[n - 1] != NULL)
+			buffer[n] = '\0';
+
+		std::string stringBuffer{ buffer };
+		if (stringBuffer == "Disconnecting")
+		{
+			m_shouldClose = true;
+			std::cout << "Disconnected. Press enter to close the application.\n";
+			return;
+		}
+		std::cout << buffer << std::endl;
+		std::cout << m_username + " : ";
 	}
-
-	if (buffer[n - 1] != NULL)
-		buffer[n] = '\0';
-
-	std::cout << buffer << std::endl;
 }
 
 void Client::Close()
 {
-	if (m_isConnected == true)
-		Send("!Quit");
-	std::cout << "close listen" << std::endl;
+	if (!m_shouldThreadStop)
+		m_shouldThreadStop = true;
 	closesocket(m_serverSocket);
-	std::cout << "close ori" << std::endl;
 	WSACleanup();
 }
 
