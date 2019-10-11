@@ -65,7 +65,7 @@ void Client::SetUsername()
 	std::thread{ &Client::ReceiveMessage, this }.detach();
 }
 
-void Client::Connection(const std::string& p_address, unsigned int p_port)
+void Client::Connection(const std::string& p_address, const unsigned int p_port)
 {
 	struct hostent* hostinfo = NULL;
 
@@ -107,9 +107,9 @@ void Client::TryConnect()
 	{
 		perror("connect()");
 	}
-
     std::cout << "Connected to server " << address << ':' << port << '\n';
 	m_isConnected = true;
+    m_shouldThreadStop = false;
 
     SetUsername();
 	Send();
@@ -161,8 +161,9 @@ void Client::ReceiveMessage()
 
 		if ((n = recv(m_serverSocket, buffer, sizeof buffer - 1, 0)) < 0)
 		{
-			perror(("[ERROR] : Couldn't Receive() message from server"));
-			return;
+			std::cout << ("[ERROR] : Couldn't Receive() message from server\n");
+			m_shouldThreadStop = true;
+            return;
 		}
 
 		if (buffer[n - 1] != NULL)
@@ -172,12 +173,21 @@ void Client::ReceiveMessage()
 		if (stringBuffer == "Disconnecting")
 		{
 			m_shouldClose = true;
+            m_shouldThreadStop = true;
 			std::cout << "Disconnected. Press enter to close the application.\n";
 			return;
 		}
-		std::cout << buffer << std::endl;
-		std::cout << m_username + " : ";
-	}
+
+        if (stringBuffer == "Flush")
+        {
+            system("cls");
+        }
+        else 
+        {
+            std::cout << buffer << std::endl;
+            std::cout << m_username + " : ";
+        }
+    }
 }
 
 void Client::Close()

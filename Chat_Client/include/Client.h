@@ -18,7 +18,7 @@ private:
     int  InitSocket();
     void SetUsername();
 
-    void Connection(const std::string& p_address, unsigned p_port);
+    void Connection(const std::string& p_address, const unsigned int p_port);
     void DecodeAddress() const;
 
     void Send();

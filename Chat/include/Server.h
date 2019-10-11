@@ -27,11 +27,14 @@ private:
     int Bind() const;
 
 	int Listen() const;
-	int Accept();
+	int AcceptNewClient();
 
-    void ReceiveMessage(Client& p_client);
+    void ReceiveMessageFromClient(Client& p_client);
+    std::string CatchMessageFromClient(const Client& p_client);
+    void DisconnectClient(const Client& p_client);
+    int CheckForExceptions(std::string& p_stringBuffer, Client& p_client);
     void Send(const Client& p_client, const std::string& p_message) const;
-    void BroadcastMessage(const std::string& p_message, const size_t p_origin);
+    void BroadcastMessage(const std::string& p_message, const size_t p_originID);
 
     int Close();
 

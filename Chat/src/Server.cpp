@@ -1,8 +1,8 @@
 #include <iostream>
-
-#include <Server.h>
 #include <cassert>
 #include <thread>
+
+#include <Server.h>
 
 #define PORT 8765
 
@@ -15,18 +15,13 @@ void Server::Init()
 {
 	assert(InitLib() >= 0);
 	InitSocket();
-	Bind();
-	std::cout << "server initialized\n";
-}
 
-void Server::Run()
-{
-	Listen();
-	std::thread threadAccept { &Server::Accept, this };
-	threadAccept.detach();
-    while(!m_shouldClose)
-    {
-    }
+	if (Bind() == EXIT_FAILURE)
+	{
+        std::cout << "Bind() failed\n";
+        return;
+	}
+    std::cout << "Server initialized\n";
 }
 
 int Server::InitLib()
@@ -39,7 +34,6 @@ int Server::InitLib()
 		std::cin.get();
 		return EXIT_FAILURE;
 	}
-	std::cout << "init" << std::endl;
     return EXIT_SUCCESS;
 }
 
@@ -73,6 +67,23 @@ int Server::Bind() const
     return EXIT_SUCCESS;
 }
 
+void Server::Run()
+{
+    if (Listen() == EXIT_FAILURE)
+    {
+        std::cout << "Listen() failed\n";
+        return;
+    }
+    std::cout << "Server running\n";
+
+    std::thread threadAccept{ &Server::AcceptNewClient, this };
+	threadAccept.detach();
+
+    while(!m_shouldClose)
+    {
+    }
+}
+
 int Server::Listen() const
 {
 	if (listen(m_sock, 1) == SOCKET_ERROR)
@@ -85,14 +96,13 @@ int Server::Listen() const
     return EXIT_SUCCESS;
 }
 
-
-int Server::Accept()
+int Server::AcceptNewClient()
 {
-	SOCKADDR_IN csin = { 0 };
-	int sinsize = sizeof csin;
-
 	Client newClient;
-	newClient.clientSocket = accept(m_sock, reinterpret_cast<SOCKADDR*>(&csin), &sinsize);
+	SOCKADDR_IN clientSocketIn = { 0 };
+	int clientSocketInSize = sizeof clientSocketIn;
+
+	newClient.clientSocket = accept(m_sock, reinterpret_cast<SOCKADDR*>(&clientSocketIn), &clientSocketInSize);
 
 	if (newClient.clientSocket == INVALID_SOCKET)
 	{
@@ -101,91 +111,112 @@ int Server::Accept()
 		std::cin.get();
 		return errno;
 	}
+
 	int placement {0};
 	while (!m_clients.emplace(m_clients.size() + placement, newClient).second)
 		++placement;
 
-	m_clients.find(m_clients.size() - 1)->second.id = m_clients.size() + placement - 1;
+	Client& clientRef = m_clients.find(m_clients.size() - 1)->second;
+    clientRef.id = (m_clients.size() - 1) + placement;
 
-    std::thread { &Server::Accept, this }.detach();
-	std::thread{ &Server::ReceiveMessage, this, std::ref(m_clients.find(m_clients.size() - 1)->second) }.detach();
-    std::cout << "User logged in\n";
+    std::thread { &Server::AcceptNewClient, this }.detach();
+	std::thread{ &Server::ReceiveMessageFromClient, this, std::ref(clientRef) }.detach();
+    std::cout << "New user logged in\n";
     return EXIT_SUCCESS;
 }
 
-void Server::ReceiveMessage(Client& p_client)
+void Server::ReceiveMessageFromClient(Client& p_client)
 {
 	bool shouldThreadStop{ false };
 	while (!shouldThreadStop)
 	{
-		char buffer[1024]{'\0'};
-		int n = 0;
-
-		if ((n = recv(p_client.clientSocket, buffer, sizeof buffer - 1, 0)) < 0)
-		{
-			closesocket(p_client.clientSocket);
-			std::cout << p_client.username + " Disconnected\n";
-
-			m_clients.erase(m_clients.find(p_client.id));
-			shouldThreadStop = true;
-		}
-		if (n < 0)
-			n = 0;
-		if (buffer[0] != -52 && buffer[n - 1] != NULL)
-			buffer[n] = '\0';
-
-		const std::string stringBuffer{ buffer };
-		if (stringBuffer.find(": !Quit") != std::string::npos)
-		{
-			Send(p_client, "Disconnecting");
-
-			closesocket(p_client.clientSocket);
-			std::cout << (p_client.username + " Disconnected\n");
-
-			m_clients.erase(m_clients.find(p_client.id));
-			shouldThreadStop = true;
-		}
-		else if (stringBuffer.find(": !close") != std::string::npos)
-		{
-			m_shouldClose = true;
-		}
-		else if (stringBuffer.find("New client username is : ") != std::string::npos)
-		{
-			char name[25];
-			sscanf_s(stringBuffer.c_str(), "New client username is : %s", &name, 25);
-
-			if (*name != NULL)
-				p_client.username = name;
-
-			std::string Welcome{ "Welcome to the server, " + p_client.username + '\n' };
-			Welcome += "There are currently " + std::to_string((m_clients.size() - 1)) + " people connected with you right now. \n";
-			Welcome += "users connected : ";
-			for (auto& client : m_clients)
-				Welcome += '\t' + client.second.username;
-
-			Send(p_client, Welcome);
-		}
-		else 
-		{
-		    std::string realMessage = stringBuffer.substr(p_client.username.size() + 3);
-			BroadcastMessage('\r' + stringBuffer, p_client.id);
-		    //std::cout << buffer << std::endl;
-		}
+        std::string stringBuffer = CatchMessageFromClient(p_client);
+        if (stringBuffer == "ABORT")
+        {
+            shouldThreadStop = true;
+            DisconnectClient(p_client);
+        }
+        if (CheckForExceptions(stringBuffer, p_client) == EXIT_FAILURE)
+            shouldThreadStop = true;
+        else 
+            BroadcastMessage("\n\r" + stringBuffer, p_client.id);
+        
 	}
+}
+
+std::string Server::CatchMessageFromClient(const Client& p_client)
+{
+    char buffer[1024]{ '\0' };
+    int n = 0;
+
+    if ((n = recv(p_client.clientSocket, buffer, sizeof buffer - 1, 0)) < 0)
+        return{"ABORT"};
+
+    if (buffer[0] != -52 && buffer[n - 1] != NULL)
+        buffer[n] = '\0';
+
+    return { buffer };
+}
+
+void Server::DisconnectClient(const Client& p_client)
+{
+    closesocket(p_client.clientSocket);
+    std::cout << p_client.username + " Disconnected\n";
+
+    m_clients.erase(m_clients.find(p_client.id));
+}
+
+int Server::CheckForExceptions(std::string& p_stringBuffer, Client& p_client)
+{
+    if (p_stringBuffer.find(": !Quit") != std::string::npos)
+    {
+        Send(p_client, "Disconnecting");
+        BroadcastMessage('\r' + p_client.username + " has left the server\n", p_client.id);
+        DisconnectClient(p_client);
+        return EXIT_FAILURE;
+    }
+    else if (p_stringBuffer.find(": !CloseRemote") != std::string::npos)
+    {
+        m_shouldClose = true;
+    }
+    else if (p_stringBuffer.find("New client username is : ") != std::string::npos)
+    {
+        char name[25];
+        sscanf_s(p_stringBuffer.c_str(), "New client username is : %s", &name, 25);
+
+        if (*name != NULL)
+            p_client.username = name;
+        
+        std::cout << "User " << p_client.username << " joined the chat\n";
+
+        Send(p_client, "Flush");
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        std::string WelcomeMessage{ "\rWelcome to the server, " + p_client.username + '\n' };
+        WelcomeMessage += "There are currently " + std::to_string((m_clients.size() - 1)) + " users connected with you right now. \n";
+        WelcomeMessage += "users connected : ";
+        for (auto& client : m_clients)
+            WelcomeMessage += '\t' + client.second.username;
+
+        WelcomeMessage += "\nWrite '!Quit' to quit anytime\n";
+
+        Send(p_client, WelcomeMessage);
+        BroadcastMessage('\n' + p_client.username + " has joined the chat\n", p_client.id);
+    }
+    return EXIT_SUCCESS;
 }
 
 void Server::Send(const Client& p_client, const std::string& p_message) const
 {
     if (send(p_client.clientSocket, p_message.c_str(), p_message.length(), 0) < 0)
     {
-        perror("send()");
+        std::cout << "Message " << '\'' + p_message + '\'' << " couldn't been sent to" << p_client.username << std::endl;
     }
 }
 
-void Server::BroadcastMessage(const std::string& p_message, const size_t p_origin)
+void Server::BroadcastMessage(const std::string& p_message, const size_t p_originID)
 {
     for (auto& client : m_clients)
-        if (client.second.id != p_origin)
+        if (client.second.id != p_originID)
             Send(client.second, p_message);
 }
 
@@ -193,9 +224,12 @@ int Server::Close()
 {
 	for (auto& sockets : m_clients)
 		closesocket(sockets.second.clientSocket);
+
 	std::cout << "close listen socket" << std::endl;
 	closesocket(m_sock);
-	std::cout << "close socket" << std::endl;
+
+    std::cout << "close socket" << std::endl;
 	WSACleanup();
-	return EXIT_SUCCESS;
+
+    return EXIT_SUCCESS;
 }
