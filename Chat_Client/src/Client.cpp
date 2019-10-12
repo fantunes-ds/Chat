@@ -47,41 +47,6 @@ int Client::InitSocket()
     return EXIT_SUCCESS;
 }
 
-void Client::SetUsername()
-{
-    std::string newUsername{};
-    std::cout << "Enter Username" << '\n';
-    std::getline(std::cin, newUsername);
-    m_username = newUsername;
-    while (m_username.size() > 25)
-    {
-		std::cout << "Username is too big, please send"
-			<< "a username with less than 25 characters\n";
-		return SetUsername();
-    }
-
-    const std::string formattedMessage = "New client username is : " + m_username;
-    if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(),0) < 0)
-    {
-        perror("send()");
-    }
-    std::thread{&Client::ReceiveMessage, this}.detach();
-}
-
-void Client::Connection(const std::string& p_address, const unsigned int p_port)
-{
-    inet_pton(AF_INET, p_address.c_str(), &m_sin.sin_addr);
-    m_sin.sin_port   = htons(p_port);
-    m_sin.sin_family = AF_INET;
-}
-
-void Client::DecodeAddress() const
-{
-    char str[15];
-    inet_ntop(AF_INET, &(m_sin.sin_addr), str, 15);
-}
-
-
 void Client::TryConnect()
 {
     std::string address;
@@ -97,6 +62,7 @@ void Client::TryConnect()
     }
     std::cout << "Default port is " << m_defaultPort <<
             " send 1 to use it, or write a new port" << '\n';
+
     int port;
     std::cin >> port;
 	std::cin.ignore(std::cin.gcount() + 1);
@@ -106,14 +72,16 @@ void Client::TryConnect()
         port = m_defaultPort;
         std::cout << "using " << m_defaultPort << " as port\n";
     }
-    Connection(address, port);
 
+    Connect(address, port);
     DecodeAddress();
+
     while (connect(m_serverSocket, reinterpret_cast<SOCKADDR*>(&m_sin),
                    sizeof(SOCKADDR)) == SOCKET_ERROR)
     {
-        perror("connect()");
+		std::cout << "Couldn't connect, retrying soon\n";
 		closesocket(m_serverSocket);
+
         InitSocket();
         return TryConnect();
     }
@@ -123,6 +91,7 @@ void Client::TryConnect()
     m_shouldThreadStop = false;
 
     SetUsername();
+    std::thread{&Client::ReceiveMessage, this}.detach();
     Send();
 }
 
@@ -132,6 +101,40 @@ void Client::Run()
     {
         Send();
     }
+}
+
+void Client::SetUsername()
+{
+    std::string newUsername{};
+
+    std::cout << "Enter Username" << '\n';
+    std::getline(std::cin, m_username);
+
+    while (m_username.size() > 25)
+    {
+		std::cout << "Username is too big, please send"
+			<< "a username with less than 25 characters\n";
+		return SetUsername();
+    }
+
+    const std::string message = "New client username is : " + m_username;
+    if (send(m_serverSocket, message.c_str(), static_cast<int>(message.length()),0) < 0)
+    {
+        perror("send()");
+    }
+}
+
+void Client::Connect(const std::string& p_address, const unsigned int p_port)
+{
+    inet_pton(AF_INET, p_address.c_str(), &m_sin.sin_addr);
+    m_sin.sin_port   = htons(p_port);
+    m_sin.sin_family = AF_INET;
+}
+
+void Client::DecodeAddress() const
+{
+    char str[15];
+    inet_ntop(AF_INET, &(m_sin.sin_addr), str, 15);
 }
 
 void Client::Send()
@@ -152,11 +155,11 @@ void Client::Send()
     if (m_shouldClose)
 		return;
 
-    if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(),
-             0) < 0)
+    if (send(m_serverSocket, formattedMessage.c_str(), static_cast<int>(formattedMessage.length()), 0) < 0)
     {
 		std::cout << "Couldn't send message, trying to reconnect :\n";
 		closesocket(m_serverSocket);
+
 		InitSocket();
         TryConnect();
     }
@@ -166,7 +169,7 @@ void Client::Send(const std::string& p_message) const
 {
     const std::string formattedMessage = m_username + " : " + p_message + '\n';
 
-    send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(), 0);
+    send(m_serverSocket, formattedMessage.c_str(), static_cast<int>(formattedMessage.length()), 0);
 }
 
 void Client::ReceiveMessage()

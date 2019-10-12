@@ -141,7 +141,7 @@ void Server::ReceiveClientMessage(Client& p_client)
 		int returnValue = CheckForExceptions(stringBuffer, p_client);
         if (returnValue == EXIT_FAILURE)
             shouldThreadStop = true;
-        else if (returnValue == 0)
+        else if (returnValue == 0 && stringBuffer != "ABORT")
             BroadcastMessage("\r" + stringBuffer, p_client.id);
     }
 }
@@ -216,7 +216,7 @@ int Server::CheckForExceptions(std::string& p_stringBuffer, Client& p_client)
 
 void Server::Send(const Client& p_client, const std::string& p_message) const
 {
-    if (send(p_client.clientSocket, p_message.c_str(), p_message.length(), 0) < 0)
+    if (send(p_client.clientSocket, p_message.c_str(), static_cast<int>(p_message.length()), 0) < 0)
     {
         std::cout << "Message " << '\'' + p_message + '\'' <<
                 " couldn't been sent to" << p_client.username << std::endl;
