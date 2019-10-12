@@ -179,11 +179,8 @@ int Server::CheckForExceptions(std::string& p_stringBuffer, Client& p_client)
     else if (p_stringBuffer.find(": !CloseRemote") != std::string::npos)
     {
 		for (auto& client : m_clients)
-		{
-			Send(client.second, "Server Closing. You will be disconnected.\n");
-			Send(p_client, "Disconnecting");
-		    DisconnectClient(client.second);
-		}
+			Send(client.second, "Disconnecting");
+		
         m_shouldClose = true;
 		return EXIT_FAILURE;
 	}

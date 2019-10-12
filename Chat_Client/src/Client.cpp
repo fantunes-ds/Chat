@@ -108,6 +108,9 @@ void Client::TryConnect()
                    sizeof(SOCKADDR)) == SOCKET_ERROR)
     {
         perror("connect()");
+		closesocket(m_serverSocket);
+        InitSocket();
+        return TryConnect();
     }
     std::cout << "Connected to server " << address << ':' << port << '\n';
 
@@ -141,10 +144,15 @@ void Client::Send()
     // unless we prepared it to be.
     formattedMessage = m_username + " : " + message;
 
+    if (m_shouldClose)
+		return;
+
     if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(),
              0) < 0)
     {
-        perror("send()");
+		std::cout << "Couldn't send message, trying to reconnect :\n";
+		closesocket(m_serverSocket);
+		InitSocket();
         TryConnect();
     }
 }
@@ -165,8 +173,9 @@ void Client::ReceiveMessage()
 
         if ((n = recv(m_serverSocket, buffer, sizeof buffer - 1, 0)) < 0)
         {
-            std::cout << ("[ERROR] : Couldn't Receive() message from server\n");
+            std::cout << ("[ERROR] : Couldn't Receive() message from server.\n");
             m_shouldThreadStop = true;
+			closesocket(m_serverSocket);
             return;
         }
 
@@ -178,7 +187,7 @@ void Client::ReceiveMessage()
         {
             m_shouldClose      = true;
             m_shouldThreadStop = true;
-            std::cout << "Disconnected. Press enter to close the application.\n";
+            std::cout << "\nDisconnected. Press enter to close the application.\n";
             return;
         }
 
