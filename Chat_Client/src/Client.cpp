@@ -51,11 +51,14 @@ void Client::SetUsername()
 {
     std::string newUsername{};
     std::cout << "Enter Username" << '\n';
-    //std::getline(std::cin, m_username)
-    char test[1024];
     std::getline(std::cin, newUsername);
-    std::cin.getline(test, 1024);
-    m_username = test;
+    m_username = newUsername;
+    while (m_username.size() > 25)
+    {
+		std::cout << "Username is too big, please send"
+			<< "a username with less than 25 characters\n";
+		return SetUsername();
+    }
 
     const std::string formattedMessage = "New client username is : " + m_username;
     if (send(m_serverSocket, formattedMessage.c_str(), formattedMessage.length(),0) < 0)
@@ -96,6 +99,8 @@ void Client::TryConnect()
             " send 1 to use it, or write a new port" << '\n';
     int port;
     std::cin >> port;
+	std::cin.ignore(std::cin.gcount() + 1);
+
     if (port == 1)
     {
         port = m_defaultPort;

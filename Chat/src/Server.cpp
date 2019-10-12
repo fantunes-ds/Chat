@@ -138,9 +138,10 @@ void Server::ReceiveClientMessage(Client& p_client)
             shouldThreadStop = true;
             DisconnectClient(p_client);
         }
-        if (CheckForExceptions(stringBuffer, p_client) == EXIT_FAILURE)
+		int returnValue = CheckForExceptions(stringBuffer, p_client);
+        if (returnValue == EXIT_FAILURE)
             shouldThreadStop = true;
-        else
+        else if (returnValue == 0)
             BroadcastMessage("\r" + stringBuffer, p_client.id);
     }
 }
@@ -207,7 +208,8 @@ int Server::CheckForExceptions(std::string& p_stringBuffer, Client& p_client)
         WelcomeMessage += "\nWrite '!Quit' to quit anytime\n";
 
         Send(p_client, WelcomeMessage);
-        BroadcastMessage(p_client.username + " has joined the chat\n", p_client.id);
+        BroadcastMessage('\r' + p_client.username + " has joined the chat\n", p_client.id);
+		return 3;
     }
     return EXIT_SUCCESS;
 }
