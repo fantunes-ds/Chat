@@ -27,12 +27,12 @@ private:
 
     void Close();
 
-    SOCKET             m_serverSocket;
-    SOCKADDR_IN        m_sin;
-    std::string        m_username{};
-    const std::string  m_defaultAddress{"127.0.0.1"};
-    const unsigned int m_defaultPort{8765};
-    bool               m_shouldClose{false};
-    bool               m_isConnected{false};
-    bool               m_shouldThreadStop{false};
+    SOCKET            m_serverSocket;
+    SOCKADDR_IN       m_sin;
+    std::string       m_username{};
+    const std::string m_defaultAddress{"127.0.0.1"};
+    const int         m_defaultPort{8765};
+    bool              m_shouldClose{false};
+    bool              m_isConnected{false};
+    bool              m_shouldThreadStop{false};
 };

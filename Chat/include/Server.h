@@ -8,40 +8,41 @@
 class Server
 {
 public:
-	Server() = default;
-	~Server();
+    Server() = default;
+    ~Server();
 
-	void Init();
+    void Init();
 
-	void Run();
+    void Run();
 private:
     struct Client
     {
-		SOCKET clientSocket{};
-		std::string username;
-		size_t id{};
+        SOCKET      clientSocket{};
+        std::string username;
+        size_t      id{};
     };
 
     int InitLib();
     int InitSocket();
     int Bind() const;
 
-	int Listen() const;
-	int AcceptNewClient();
+    int Listen() const;
+    int AcceptNewClient();
 
-    void ReceiveMessageFromClient(Client& p_client);
-    std::string CatchMessageFromClient(const Client& p_client);
-    void DisconnectClient(const Client& p_client);
-    int CheckForExceptions(std::string& p_stringBuffer, Client& p_client);
-    void Send(const Client& p_client, const std::string& p_message) const;
-    void BroadcastMessage(const std::string& p_message, const size_t p_originID);
+    void        ReceiveClientMessage(Client& p_client);
+    std::string CatchClientMessage(const Client& p_client);
+    void        DisconnectClient(const Client& p_client);
+    int         CheckForExceptions(std::string& p_stringBuffer, Client& p_client);
+    void        Send(const Client& p_client, const std::string& p_message) const;
+    void        BroadcastMessage(const std::string& p_message,
+                                 const size_t       p_originId);
 
     int Close();
 
 
-    SOCKET m_sock;
-	std::unordered_map<size_t, Client> m_clients{};
+    SOCKET                             m_sock;
+    std::unordered_map<size_t, Client> m_clients{};
 
-    bool m_shouldClose {false};
+    bool         m_shouldClose{false};
     const size_t m_maxConnections = 2;
 };

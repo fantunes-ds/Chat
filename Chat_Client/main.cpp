@@ -2,9 +2,9 @@
 
 int main()
 {
-	Client user;
-	user.Init();
-	user.TryConnect();
-	user.Run();
-	return EXIT_SUCCESS;
+    Client user;
+    user.Init();
+    user.TryConnect();
+    user.Run();
+    return EXIT_SUCCESS;
 }
