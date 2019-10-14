@@ -53,13 +53,19 @@ void Client::TryConnect()
 
     std::cout << "Default address is " << m_defaultAddress
               << " send 1 to use it, or write a new address" << '\n';
-    std::cin >> address;
+    std::getline(std::cin, address);
 
     if (address == "1")
     {
         address = m_defaultAddress;
         std::cout << "using " << m_defaultAddress << " as address\n";
     }
+	else if (address.empty())
+	{
+		std::cout << "Address cannot be empty. Please enter an address\n";
+		return TryConnect();
+	}
+
     std::cout << "Default port is " << m_defaultPort <<
             " send 1 to use it, or write a new port" << '\n';
 
@@ -110,9 +116,14 @@ void Client::SetUsername()
     std::cout << "Enter Username" << '\n';
     std::getline(std::cin, m_username);
 
-    while (m_username.size() > 25)
+    if (m_username.empty())
     {
-		std::cout << "Username is too big, please send"
+		std::cout << "Username can't be empty. Please write a username\n";
+		return SetUsername();
+    }
+    else if (m_username.size() > 25)
+    {
+		std::cout << "Username is too big, please send "
 			<< "a username with less than 25 characters\n";
 		return SetUsername();
     }
@@ -145,6 +156,9 @@ void Client::Send()
     std::cout << m_username << " : ";
 
     std::getline(std::cin, message);
+
+    if (message.empty())
+		return;
 
     // we keep sending our username, although the server has that information
     // because it restricts what the user can do. He can't run commands that are only server sided.
